@@ -1,8 +1,8 @@
-hidden = [".config", "nat/main.oak"]
+hidden = [".config"]
 language = "kaboomdraw"
 
-entrypoint = "main.oak"
-run = "oak nat/main.oak"
+entrypoint = "web/entry.oak"
+run = "oak nat/.main.oak"
 
 [nix]
 channel = "stable-21_11"
