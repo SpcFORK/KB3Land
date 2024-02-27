@@ -70,6 +70,11 @@ bFile := path.resolve('entry', buildDir)
 
 fO_ := File + '.oak'
 bJS := bFile + '.js'
+mbJS := bFile + '.m.js'
+
+archivebOak := bFile + '.oak'
+binFile := bFile |> string()
+
 head := File + '.header.js'
 foot := File + '.footer.js'
 
@@ -111,11 +116,44 @@ std.print(
   ], '').stdout << '\n'
 )
 
+std.print(
+  '\n[ OAKSri ]\n' << exec('oak', [
+    'build'
+
+    '--entry'
+    fO_
+
+    '--output'
+    archivebOak
+  ], '').stdout << '\n'
+)
+
+std.print(
+  '\n[ OAKSri ]\n' << exec('oak', [
+    path.resolve('nat/.pack.oak')
+
+    '--entry'
+    fO_
+
+    '--output'
+    binFile
+  ], '').stdout << '\n'
+)
+
 gotFile := with makeOrGetFile(bJS) ''
 gotHeader := with makeOrGetFile(head) ''
 gotFooter := with makeOrGetFile(foot) ''
 
 bJS |> fs.writeFile(gotHeader + '\n\n' + gotFile + '\n\n' + gotFooter) |> std.println()
+
+std.print(
+  '\n[ OAKSri ]\n' << exec('uglifyjs', [
+    bJS
+
+    '--output'
+    mbJS
+  ], '').stdout << '\n'
+)
 
 // ---
 
@@ -156,6 +194,21 @@ std.println('FilePath: ', path.resolve('nat/entry.oak'))
 // ---
 
 ff := path.resolve('nat/entry') |> frameFactory()
+
+// ---
+
+res := exec('node', [
+  path.resolve('index.js')
+], '')
+
+res <- if res |> type() {
+  :string -> res
+  _ -> res.stdout
+}
+
+std.print(
+  '\n\n[ OAKSri ]\n' << res |> string()
+)
 
 // ---
 

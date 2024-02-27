@@ -1,0 +1,17 @@
+// Get an entrypoint to export cross-platform
+fn getExporter {
+  if globalThis.module {
+    ? -> globalThis.window
+    _ -> globalThis.module.exports
+  }
+}
+
+// Get the users platform
+fn platform? {
+  if getExporter() = globalThis.module {
+    true -> 'node'
+    false -> 'web'
+  }
+}
+
+// -Spectcow

@@ -1,3 +1,19 @@
+std := import('std')
+hlp := import('hlp')
+
+// ---
+
 fn wow {
-  print('wow')
+  with print hlp.platform?()
 }
+
+wow()
+
+// ---
+
+hlp.getExporter().myModule := {
+  wow: wow
+}
+
+// - Spectcow
+//   DOCS: https://oaklang.org/lib/

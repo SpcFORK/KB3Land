@@ -1,0 +1,24 @@
+// oak build
+__Oak_Modules := {}
+__Oak_Import_Aliases := ?
+fn __oak_modularize(name, module) __Oak_Modules.(name) := module
+fn __oak_module_import(name) if ___runtime_lib?(name) {
+	true -> import(name)
+	_ -> if type(module := __Oak_Modules.(name)) {
+		:null -> if module := __Oak_Modules.(__Oak_Import_Aliases.(name)) {
+			? -> import(name)
+			_ -> {
+				mod := module()
+				__Oak_Modules.(name) := mod
+				mod
+			}
+		}
+		:function -> {
+			m := module()
+			__Oak_Modules.(name) := m
+			m
+		}
+		_ -> module
+	}
+}
+(__oak_modularize('entry.oak',fn()(std:=__oak_module_import('std'),hlp:=__oak_module_import('hlp.oak'),fn wow()(print(hlp.platform?())),wow(),hlp.getExporter().entry:={wow:wow},{hlp:hlp,std:std,wow:wow})),__oak_modularize('hlp.oak',fn()(fn getExporter()(if globalThis.module{?->globalThis.window,_->globalThis.module.exports}),fn platform?()(if getExporter()=globalThis.module{true->'node',false->'web'}),{getExporter:getExporter,platform?:platform?})),__Oak_Import_Aliases<-{},__oak_module_import('entry.oak'))
