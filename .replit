@@ -19,6 +19,9 @@ externalPort = 80
 publicDir = "/"
 deploymentTarget = "static"
 
+[gitHubImport]
+requiredFiles = [".replit", "replit.nix", ".config"]
+
 [languages]
 
 [languages.javascript]
