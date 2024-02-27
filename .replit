@@ -1,4 +1,4 @@
-hidden = [".config"]
+hidden = [".config", "nat/main.oak"]
 language = "kaboomdraw"
 
 entrypoint = "main.oak"
