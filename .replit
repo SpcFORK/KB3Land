@@ -15,6 +15,12 @@ PATH = "/home/runner/$REPL_SLUG/.config/bin:$PATH"
 localPort = 9999
 externalPort = 80
 
+[packager]
+language = "oak"
+
+[unitTest]
+language = "oak"
+
 [deployment]
 publicDir = "/"
 deploymentTarget = "static"
