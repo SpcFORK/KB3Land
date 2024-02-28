@@ -1,19 +1,34 @@
 std := import('std')
+str := import('str')
+json := import('json')
+fmt := import('fmt')
+path := import('path')
+
+oaka := import('oaka')
 hlp := import('hlp')
 
 // ---
 
-fn wow {
-  with print hlp.platform?()
+kaboom()
+
+spr := OKloadSprite(
+  'bean'
+  '/sprites/bean.png'
+)
+
+with scene('main') fn {
+
+  bean := add([
+    sprite(spr)
+  ])  
+
 }
 
-wow()
+go('main')
 
 // ---
 
-hlp.getExporter().myModule := {
-  wow: wow
-}
+// hlp.getExporter().myModule := {}
 
 // - Spectcow
 //   DOCS: https://oaklang.org/lib/

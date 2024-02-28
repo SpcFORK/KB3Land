@@ -1,5 +1,5 @@
 hidden = [".config"]
-language = "kaboomdraw"
+language = "kaboom"
 onBoot = "chmod +x .config/bin/oak"
 
 entrypoint = "web/entry.oak"

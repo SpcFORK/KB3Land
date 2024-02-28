@@ -1,0 +1,55 @@
+std := import('std')
+str := import('str')
+json := import('json')
+fmt := import('fmt')
+path := import('path')
+
+w := window
+
+// ---
+
+fn windowBind(fns...) {
+  with std.each(fns) fn (it) {
+    window.(it.name) <- it
+    window.('OK' + it.name) <- it
+    
+    globalThis.(it.name) <- it
+    globalThis.('OK' + it.name) <- it
+  }
+}
+
+windowBind(
+
+  // Stringify JS interop
+  fn s(pl) string(pl).toString()
+  
+  fn kb(func, pls) {
+    strings := with std.map(pls) fn (it, i?) it |> s()
+  
+    func(strings...)
+  }
+  
+  // ---
+
+  fn do(code) eval(code |> s())
+  fn assign(name, code) w.(name |> string()) <- do(code)
+  
+  // ---
+  
+  // If an oakstr, force stringification for JS envs.
+  fn abstr?(thing, op) if type(thing) {
+    :string -> op(thing)
+  }
+  
+  // ---
+  
+  fn sprite(args...) {
+    with abstr?(args.(0)) fn(it) it <- it |> s()
+    w.sprite(args...)
+  }
+  
+  fn loadSprite(args...) {
+    with kb(w.loadSprite) args
+  }
+
+)
