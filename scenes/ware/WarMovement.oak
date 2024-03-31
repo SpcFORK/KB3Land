@@ -190,18 +190,32 @@ fn War3MC(ss) {
       if obj.whenHeadbutt != ? -> obj.whenHeadbutt(ss)
     }
 
+    fn collideSoundEvent(RATEX, RATEY, ob) {
+      RATEX? := RATEX |> std.default(5)
+      RATEY? := RATEY |> std.default(5)
+      mass? := ob.mass |> std.default(5)
+      
+      play(
+        s('contact')
+        {
+          speed: 1 + ((RATEY?*RATEX?) * mass? / 50)
+          volume: 0.8
+        }
+      )
+    }
+
     fn BouncePlayer {
       direction := 
       ss.vel.x <- 500 * -dirVal
       ss.vel.y <- 500
 
       ss.jump(200)
+      collideSoundEvent(?, ?, ss)
 
       ssGEH! <- with ss.onGround() fn {
         ssGEH!.cancel()
         ss.vel.x <- 0
         ss.vel.y <- 0
-        with play() s('land')
 
         ss.MAYDASH? <- true
       }
@@ -214,18 +228,33 @@ fn War3MC(ss) {
       ob.vel.x <- 500 / (RATEX * ob.mass / 2) * dr?
       ob.vel.y <- 500 / (RATEY * ob.mass)
 
-      play(
-        s('contact')
-        {
-          speed: 1 + ((RATEY*RATEX) * ob.mass / 50)
-          volume: 0.8
+      if ob.jump != ? -> ob.jump()
+      collideSoundEvent(RATEX, RATEY, ob)
+
+      // ---
+
+      fn bounceEventsCancel {
+        BOECH!.cancel()
+        obGEH!.cancel()
+      }
+
+      BOECH! := ob.onCollide(
+        s(:SOLID)
+        fn(solidWall) {
+          ob.vel.x <- -ob.vel.x / 2
+          with play() s('land')
         }
       )
-
-      if ob.jump != ? -> ob.jump()
-
+      
+      ob.CHARGETHROW <-
+      ob.THROWN <- true
+      
       obGEH! <- with ob.onGround() fn {
-        obGEH!.cancel()
+        bounceEventsCancel()
+        
+        ob.CHARGETHROW <-
+        ob.THROWN <- false
+        
         ob.vel.x <- 0
         ob.vel.y <- 0
       }
@@ -238,7 +267,7 @@ fn War3MC(ss) {
       s(:WAR_SMASH)
       fn(ob) if {
         CLOSE_ENOUGH? := ss.pos.dist(ss.pos.x, ob.pos.y) < 50
-        ABOVE_GROUND? := ob.pos.y < ss.pos.y + 48
+        ABOVE_GROUND? := ob.pos.y < ss.pos.y + (ss.height / 2)
 
         CLOSE_ENOUGH? & ABOVE_GROUND? -> {
           end()
@@ -323,7 +352,7 @@ fn War3MC(ss) {
       s(:WAR_GRAB)
 
       fn(o1) {
-        canLift? := o1.pos.dist(vec2(ss.pos.x, o1.pos.y)) < 65 & o1.pos.y < ss.pos.y + (48 / 2) 
+        canLift? := o1.pos.dist(vec2(ss.pos.x, o1.pos.y)) < 65 + (ss.height / 2) & o1.pos.y < ss.pos.y + (ss.height / 2)
         
         if canLift? -> {
           LE!.cancel()
@@ -336,8 +365,9 @@ fn War3MC(ss) {
           with play() s('pickup')
   
           ss.LIFT_EV <- with o1.onUpdate() fn {
-            o1.moveTo(ss.pos.x + (25 * ss.moving.x), ss.pos.y - 60, 6000)
-            o1.pos.y <- ss.pos.y - 60
+            fixedYPos := ss.pos.y - 45 - (o1.height / 2)
+            o1.moveTo(ss.pos.x + ((25 + (o1.width / 4)) * ss.moving.x), fixedYPos, 1000)
+            o1.pos.y <- fixedYPos
           }
         }
       }
@@ -351,22 +381,25 @@ fn War3MC(ss) {
     ssTHROWN.vel.y <- 0
     ssTHROWN.vel.x <- 0
 
-
-    mX := 150
+    mX := 250
     mY := 25
 
     fn addVel {
-      mX <- mX * 1.5
-      mY <- mY * 2.5
+      mXYc := 1.7
+      mX <- mX * mXYc
+      mY <- mY * mXYc
     }
 
     phase1 := with std.once() fn {
-      ss.color <- YELLOW.clone().lighten(0.75)
+      ssTHROWN.vel.y <- 0
+      ssTHROWN.vel.x <- 0
+      
+      ss.color <- Color |> new(255, 255 / 2, 0)
       addVel()
     }
     
     phase2 := with std.once() fn {
-      ss.color <- YELLOW.clone().lighten(0.50)
+      ss.color <- Color |> new(255, 192, 203)
       addVel()
     }
     
@@ -375,20 +408,21 @@ fn War3MC(ss) {
       addVel()
     }
 
-    CE! := with ss.onUpdate() fn {
-      resTime := time()
-      elapsed := resTime - initTime
-      
-      if elapsed > 0.2 -> phase1()
-      if elapsed > 0.4 -> phase2()
-      if elapsed > 0.6 -> phase3()
+    CE! := with ss.onUpdate() fn if ss.LIFTING? {
+      true -> {
+        resTime := time()
+        elapsed := resTime - initTime
+        
+        if elapsed > 0.5 -> phase1()
+        if elapsed > 1 -> phase2()
+        if elapsed > 1.5 -> phase3()
+      }
+
+      _ -> cancelAll!()
     }
 
     TE! := with strunpress('l') fn {
-      ss.LIFTING? <- false
-      CE!.cancel()
-      TE!.cancel()
-      ss.LIFT_EV.cancel()
+      cancelAll!()
       
       ss.color <- WHITE
       with play() s('throw')
@@ -399,12 +433,17 @@ fn War3MC(ss) {
       elapsed := resTime - initTime 
 
       if s('w') |> isKeyDown() -> {
-        mY <- mY + 600
-        mX <- mX / 2
+        mY <- mY + 300
+        mX <- mX / 4
       }
 
       // Fling
-      ssTHROWN.vel.x <- ssTHROWN.vel.x + (mX * ss.moving.x)
+      ThrowDirVal := if ss.flipX {
+        true -> -1
+        _ -> 1
+      }
+      
+      ssTHROWN.vel.x <- ssTHROWN.vel.x + (mX * ThrowDirVal)
       
       BONUS_SPEED := (200 * ss.moving.x)
       if {
@@ -433,6 +472,13 @@ fn War3MC(ss) {
       // We now leave it
       ss.CUR_LIFTING? <- ?
     }
+
+    fn cancelAll! {
+      ss.LIFTING? <- false
+      CE!.cancel()
+      TE!.cancel()
+      ss.LIFT_EV.cancel()
+    }
   }
   
   with strpress!('l') fn if !ss.LIFTING? {
@@ -446,23 +492,21 @@ fn War3MC(ss) {
   // ---
 
   JUMPSOUND := ?
+  fn JumpS_END {
+    JUMPSOUND <- ?
+  }
+  
   with strpress!('space') fn if ss.isGrounded() -> {
     if JUMPSOUND = ? -> tmpjsnd := with play() s('jump')
     JUMPSOUND <- tmpjsnd
 
-    fn JumpS_END {
-      JUMPSOUND <- ?
-    }
-
     with tmpjsnd.onEnd() JumpS_END
-
-    TMPJGRNDH! := with ss.onGround() fn {
-      TMPJGRNDH!.cancel()
-
-      with play() s('land')
-      JumpS_END()
-    }
     
     ss.jump()
+  }
+
+  with ss.onGround() fn {
+    with play() s('land')
+    JumpS_END()
   }
 }

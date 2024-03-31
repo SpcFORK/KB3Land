@@ -142,6 +142,8 @@ fn MovingCrate(p, x, y, ws, hs, grab?, smash?, isStatic?) {
     // We'll up our odds when bouncing on a head.
     box.vel.x <- box.vel.x * [-1, 1, p_dir] |> rnd.choice()
   }
+
+  with box.onGround() fn() with play() s('land')
   
   with box.onUpdate() fn {
     landedOn? := box.curPlatform()
@@ -158,7 +160,7 @@ fn MovingCrate(p, x, y, ws, hs, grab?, smash?, isStatic?) {
       randomDir := [-1, 1] |> rnd.choice()
       
       FallUL! := with box.onUpdate() fn {
-        box.angle <- box.angle + (5 * dt() * randomDir)
+        box.angle <- box.angle + math.round(5 * dt() * randomDir)
       }
 
       FallGE! := with box.onGround() fn {
@@ -168,18 +170,27 @@ fn MovingCrate(p, x, y, ws, hs, grab?, smash?, isStatic?) {
     }
   }
 
+  fn realignBoxAngle(nA) if ! nA % 90 = 0 -> {
+    // Turn towards nearest 90* side
+    sideA := nA / 90
+    if int(sideA) < sideA -> sideA <- sideA + 1
+    
+    box.angle <- int(sideA) * 90
+    
+  }
+
   with box.onUpdate() fn {
     fallingTooLong?()
     
-    if box.isGrounded() & ! box.angle % 90 = 0 -> {
-      // Turn towards nearest 90* side
-      sideA := box.angle / 90
-      if int(sideA) < sideA -> sideA <- sideA + 1
-      
-      box.angle <- int(sideA) * 90
-      
-    }
+    if box.isGrounded() -> realignBoxAngle(box.angle)
   }
+
+  box.onCollide(
+    s(:SOLID)
+    fn(ob) {
+      realignBoxAngle(-ob.angle)
+    }
+  )
 }
 
 fn Floor(p, x, y, w, h) {
@@ -289,7 +300,7 @@ fn Level1 {
     30
     20
 
-    1
+    2
     1
 
     true
