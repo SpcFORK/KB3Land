@@ -1,0 +1,468 @@
+std := import('std')
+math := import('math')
+rnd := import('random')
+
+fn snd(name) loadSound(s(name), s('sounds/' << name << '.wav'))
+
+THROW := snd('throw')
+PICKUP := snd('pickup')
+LAND := snd('land')
+JUMP := snd('jump')
+CONTACT := snd('contact')
+CHARGE := snd('charge')
+LSAND := snd('lsand')
+SANDY := snd('sandy')
+SMALL := snd('small')
+WACKY := snd('wacky')
+WALK := snd('walk')
+
+COLORS := [
+  color(255, 0, 255)
+  color(255, 255, 0)
+  color(255, 255, 255)
+  color(0, 0, 255)
+]
+
+fn War3MC(ss) {
+
+  fn strpress(key, cb) ss.onKeyDown(s(key), cb)
+  fn strunpress(key, cb) ss.onKeyRelease(s(key), cb)
+  fn strpress!(key, cb) ss.onKeyPress(s(key), cb)
+
+  // ---
+  // @ Consts
+  
+  // We will imagine Mass being default to one as 1 kg
+  ss.MAXMASS := 2
+  ss.RESETMASS := 1
+
+  ss.SPEED := 480
+  ss.CAMSPEED := 5
+  ss.DASHLEN := 50
+
+  ss.mass <- ss.RESETMASS
+
+  ss.CAMBOUNDS := {
+    x: ?
+    y: ?
+    w: ?
+    h: ?
+  }
+
+  ss.moving := {
+    // 0 - not
+
+    // 1 - right
+    // -1 - left
+
+    x: 0
+  }
+
+  // ---
+  // @ Cam
+  
+  fn moveCam {
+    TW := ?
+    if ss.CAM -> {
+      if TW != ? -> TW.finish()
+
+      X := ss.pos.x
+      Y := ss.pos.y
+
+      ssCamClone := ss.CAMBOUNDS |> std.clone()
+
+      ssCamClone.x := ssCamClone.x |> std.default(-9999)
+      ssCamClone.y := ssCamClone.y |> std.default(-9999)
+      ssCamClone.w := ssCamClone.w |> std.default(9999)
+      ssCamClone.h := ssCamClone.h |> std.default(9999)
+
+      BOUNDX := ssCamClone.x + (width() / 2)
+      BOUNDY := ssCamClone.y + (height() / 2)
+      BOUNDW := ssCamClone.w - (width() / 2)
+      BOUNDH := ssCamClone.h - (height() / 2)
+
+      nX := X |> math.clamp(BOUNDX, BOUNDW)
+      nY := Y |> math.clamp(BOUNDY, BOUNDH)
+
+      vec! := vec2(nX, nY)
+
+      TW <- tween(
+        camPos()
+        vec!
+        ss.CAMSPEED / ss.pos.dist(camPos())
+        fn(v) camPos(v)
+        easings.easeOutQuad
+      )
+
+      with TW.onEnd() fn {
+        TW <- ?
+      }
+    }
+  }
+
+  with ss.onUpdate() moveCam
+
+  // ---
+  // @ Sound
+
+  WALKSound? := ?
+  fn walkSoundFullStop {
+    if WALKSound? != ? -> WALKSound?.stop()
+    WALKSound? <- ?
+  }
+  
+  fn playWSnd(key!) if !ss.DASHING & ss.isGrounded() {
+    true -> if WALKSound? = ? -> {
+      // WALKSOUND or sandy.
+      curPF := ss.curPlatform()
+      
+      floorSound := curPF.WALKSOUND |> with std.default() s('sandy')
+      floorOpts := curPF.WALKOPTIONS |> std.default({})
+      
+      snd := floorSound |> play(floorOpts) 
+      WALKSound? <- snd
+      
+      with snd.onEnd() walkSoundFullStop
+    }
+
+    false -> walkSoundFullStop()
+  } 
+
+  // ---
+  // @ Move
+  
+  ss.WALKING <- false
+  
+  fn isIDLE {
+    ss.moving.x <- 0
+    ss.WALKING <- false
+    walkSoundFullStop()
+  }
+  
+  with strpress('a') fn {
+    ss.flipX <- true
+    ss.moving.x <- -1
+    ss.WALKING <- true
+    ss.move(-ss.SPEED, 0)
+    playWSnd('a')
+  }
+
+  with strpress('d') fn {
+    ss.flipX <- false
+    ss.moving.x <- 1
+    ss.WALKING <- true
+    ss.move(ss.SPEED, 0)
+    playWSnd('d')
+  }
+  
+  with strunpress('a') isIDLE
+  with strunpress('d') isIDLE
+
+  // ---
+
+  ss.DASHING := false
+  ss.MAYDASH? := true
+
+  with ss.use() color(WHITE)
+
+  CHARGESound? := ?
+
+  with strpress!(';') fn if ! ss.DASHING & ss.MAYDASH? -> {
+    walkSoundFullStop()
+
+    CHARGESound? <- s('charge') |> with play() {
+      loop: true
+    }
+
+    ss.DASHING <- true
+    TIMED <- false
+    ss.MAYDASH? <- false
+
+    with wait(ss.DASHLEN * dt()) fn() TIMED <- true
+
+    dir := ss.flipX
+    dirVal := if dir {
+      true -> -1
+      _ -> 1
+    }
+
+    with ss.onHeadbutt() fn(obj) {
+      if obj.whenHeadbutt != ? -> obj.whenHeadbutt(ss)
+    }
+
+    fn BouncePlayer {
+      direction := 
+      ss.vel.x <- 500 * -dirVal
+      ss.vel.y <- 500
+
+      ss.jump(200)
+
+      ssGEH! <- with ss.onGround() fn {
+        ssGEH!.cancel()
+        ss.vel.x <- 0
+        ss.vel.y <- 0
+        with play() s('land')
+
+        ss.MAYDASH? <- true
+      }
+    }
+
+    fn BounceOb(ob, dr?) {
+      RATEX := ob.BRATE.x |> std.default(5)
+      RATEY := ob.BRATE.y |> std.default(5)
+      
+      ob.vel.x <- 500 / (RATEX * ob.mass / 2) * dr?
+      ob.vel.y <- 500 / (RATEY * ob.mass)
+
+      play(
+        s('contact')
+        {
+          speed: 1 + ((RATEY*RATEX) * ob.mass / 50)
+          volume: 0.8
+        }
+      )
+
+      if ob.jump != ? -> ob.jump()
+
+      obGEH! <- with ob.onGround() fn {
+        obGEH!.cancel()
+        ob.vel.x <- 0
+        ob.vel.y <- 0
+      }
+    }
+
+    // In case COL obj is next to player
+    ss.pos.x <- ss.pos.x - (dirVal * 10)
+    
+    ECH! := ss.onCollide(
+      s(:WAR_SMASH)
+      fn(ob) if {
+        CLOSE_ENOUGH? := ss.pos.dist(ss.pos.x, ob.pos.y) < 50
+        ABOVE_GROUND? := ob.pos.y < ss.pos.y + 48
+
+        CLOSE_ENOUGH? & ABOVE_GROUND? -> {
+          end()
+
+          BouncePlayer()
+          BounceOb(ob, dirVal)
+        }
+      } 
+      
+    )
+    
+    WECH! := ss.onCollide(
+      s(:SOLID)
+      fn(ob) if {
+        
+        CLOSE_ENOUGH? := ss.pos.dist(ss.pos.x, ob.pos.y) < 20
+        ABOVE_GROUND? := ob.pos.y < ss.pos.y + 1
+        
+        CLOSE_ENOUGH? & ABOVE_GROUND? -> {
+          end()
+          BouncePlayer()
+        }
+      }
+    )
+
+    state := with ss.onUpdate() fn {
+      with ss.use() std.clone(rnd.choice(COLORS))
+      ss.vel.x <- 5 * dirVal
+
+      if dir != ss.flipX -> {
+        end()
+        ss.MAYDASH? <- true
+      }
+      
+      ss.pos.x <- ss.pos.x + (dt() * (ss.SPEED / 2)) * dirVal
+      ss.mass <- ss.MAXMASS
+
+      if WALKSound? != ? -> WALKSound?.stop()
+
+      if ss.isGrounded() & TIMED -> {
+        ss.MAYDASH? <- true
+        end()
+      }
+    }
+
+    end := with std.once() fn {
+      ss.DASHING <- false
+
+      state.cancel()
+      ECH!.cancel()
+      WECH!.cancel()
+
+      state <- ?
+      ECH! <- ?
+      WECH! <- ?
+
+      CHARGESound?.stop()
+      ss.color <- WHITE
+
+      ss.mass <- ss.RESETMASS
+    }
+  }
+
+  // ---
+
+  ss.LIFTING? <- false
+  ss.LIFTINGMASS? <- 1
+
+  ss.LIFT_EV <- ?
+  ss.CUR_LIFTING? <- ?
+  LE! := ?
+  
+  fn Lift {
+    LooseEH! := with ss.onUpdate() fn {
+      if !ss.LIFTING? & LE! != ? & with isKeyReleased() s('l') -> {
+        LE!.cancel()
+        LE! <- ?
+      }
+    }
+
+    LE! <- ss.onCollide(
+      s(:WAR_GRAB)
+
+      fn(o1) {
+        canLift? := o1.pos.dist(vec2(ss.pos.x, o1.pos.y)) < 65 & o1.pos.y < ss.pos.y + (48 / 2) 
+        
+        if canLift? -> {
+          LE!.cancel()
+          LE! <- ?
+          
+          ss.CUR_LIFTING? <- o1
+          ss.LIFTING? <- true
+          if o1.gravityScale != ? -> o1.gravityScale <- 0
+
+          with play() s('pickup')
+  
+          ss.LIFT_EV <- with o1.onUpdate() fn {
+            o1.moveTo(ss.pos.x + (25 * ss.moving.x), ss.pos.y - 60, 6000)
+            o1.pos.y <- ss.pos.y - 60
+          }
+        }
+      }
+    )
+  }
+
+  fn Throw {
+    initTime := time()
+    // Make a copy we can edit and remove the property without messing this one up
+    ssTHROWN := ss.CUR_LIFTING?
+    ssTHROWN.vel.y <- 0
+    ssTHROWN.vel.x <- 0
+
+
+    mX := 150
+    mY := 25
+
+    fn addVel {
+      mX <- mX * 1.5
+      mY <- mY * 2.5
+    }
+
+    phase1 := with std.once() fn {
+      ss.color <- YELLOW.clone().lighten(0.75)
+      addVel()
+    }
+    
+    phase2 := with std.once() fn {
+      ss.color <- YELLOW.clone().lighten(0.50)
+      addVel()
+    }
+    
+    phase3 := with std.once() fn {
+      ss.color <- YELLOW
+      addVel()
+    }
+
+    CE! := with ss.onUpdate() fn {
+      resTime := time()
+      elapsed := resTime - initTime
+      
+      if elapsed > 0.2 -> phase1()
+      if elapsed > 0.4 -> phase2()
+      if elapsed > 0.6 -> phase3()
+    }
+
+    TE! := with strunpress('l') fn {
+      ss.LIFTING? <- false
+      CE!.cancel()
+      TE!.cancel()
+      ss.LIFT_EV.cancel()
+      
+      ss.color <- WHITE
+      with play() s('throw')
+
+      if ssTHROWN.gravityScale != ? -> ssTHROWN.gravityScale <- 1
+      
+      resTime := time()
+      elapsed := resTime - initTime 
+
+      if s('w') |> isKeyDown() -> {
+        mY <- mY + 600
+        mX <- mX / 2
+      }
+
+      // Fling
+      ssTHROWN.vel.x <- ssTHROWN.vel.x + (mX * ss.moving.x)
+      
+      BONUS_SPEED := (200 * ss.moving.x)
+      if {
+        ss.WALKING -> {
+          ssTHROWN.vel.x <- ssTHROWN.vel.x + BONUS_SPEED
+          ssTHROWN.vel.y <- ssTHROWN.vel.y + (BONUS_SPEED / 2)
+        }
+        
+        ss.DASHING -> {
+          ssTHROWN.vel.x <- ssTHROWN.vel.x + BONUS_SPEED
+          ssTHROWN.vel.y <- ssTHROWN.vel.y + BONUS_SPEED
+        }
+      }
+      
+      ssTHROWN.vel.y <- ssTHROWN.vel.y - mY
+
+      // Tell the game it is thowing
+      ssTHROWN.THROWN := true
+      with ssTHROWN.onGround() fn {
+        ssTHROWN.THROWN <- false
+
+        ssTHROWN.vel.x <- 0
+        ssTHROWN.vel.y <- 0
+      }
+
+      // We now leave it
+      ss.CUR_LIFTING? <- ?
+    }
+  }
+  
+  with strpress!('l') fn if !ss.LIFTING? {
+    true -> {
+      if LE! = ? -> Lift()
+
+    }
+    _ -> Throw()
+  }
+
+  // ---
+
+  JUMPSOUND := ?
+  with strpress!('space') fn if ss.isGrounded() -> {
+    if JUMPSOUND = ? -> tmpjsnd := with play() s('jump')
+    JUMPSOUND <- tmpjsnd
+
+    fn JumpS_END {
+      JUMPSOUND <- ?
+    }
+
+    with tmpjsnd.onEnd() JumpS_END
+
+    TMPJGRNDH! := with ss.onGround() fn {
+      TMPJGRNDH!.cancel()
+
+      with play() s('land')
+      JumpS_END()
+    }
+    
+    ss.jump()
+  }
+}

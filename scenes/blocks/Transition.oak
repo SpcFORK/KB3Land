@@ -1,0 +1,37 @@
+std := import('std')
+
+fn Transition(color_, tw) {
+
+  color_ := color_ |> std.default(BLACK)
+  tw := tw |> std.default(easings.easeOutSine)
+
+  self := {}
+
+  fn createFG {
+    add([
+      rect(width(), height())
+      color(color_)
+      opacity(1)
+      pos(camPos())
+      with anchor() s('center')
+    ])
+  }
+
+  self.tr <- createFG()
+
+  fn fadeOut(sp) {
+    self.tr.fadeOut(sp)
+  }
+
+  self.fadeIn := fn(speed, color) {
+    if color != ? -> self.tr.use(color)
+    with self.tr.use() fadeIn(speed)
+  }
+
+  self.fadeOut := fn(speed, color) {
+    if color != ? -> self.tr.use(color)
+    self.tr.fadeOut(speed)
+  }
+
+  self
+}

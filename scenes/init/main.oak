@@ -1,0 +1,336 @@
+// ---
+// @ Imports
+{
+  Transition: Transition
+} := import('../blocks/Transition')
+
+{
+  War3MC: War3MC
+} := import('../ware/WarMovement')
+
+std := import('std')
+math := import('math')
+rnd := import('random')
+
+// Moving Crate Number Def, 
+// Most common function, best origin
+fn mcndef(v) v |> std.default(1)
+
+// ---
+// @ Loading
+
+spr := OKloadSprite(
+  'bean'
+  '/sprites/bean.png'
+)
+
+fn isMobile? {
+  userAgent := globalThis.navigator.userAgent
+
+  if str.contains?(userAgent, 'Mobi') {
+    true -> true
+    _ -> false
+  }
+}
+
+fn tempUpdate(time, cb) {
+  RUNNING? := true
+  EOF := ?
+
+  ou_ec := with onUpdate() cb
+
+  fn END if RUNNING? -> {
+    ou_ec.cancel()
+    RUNNING? <- false
+    if EOF != ? -> EOF()
+  }
+
+  self := {
+    EV: ou_ec
+    time: time
+
+    running: fn() RUNNING?
+    eof: fn() EOF
+
+    onFinish: fn(cb) if RUNNING? -> EOF <- cb
+    finish: END
+  }
+
+  with wait(time) END
+
+  self
+}
+
+// ---
+// @ Game
+
+fn makePlayer {
+  with add() [
+    sprite(spr)
+    pos()
+    area()
+    body()
+    opacity()
+    with anchor() s('center')
+    s('P')
+  ]
+}
+
+// ---
+// @ Objects
+
+fn MovingCrate(p, x, y, ws, hs, grab?, smash?, isStatic?) {
+  fn color!(v) with color() s(v)
+  COLS := [
+    color!('#EEB76B')
+    color!('#E2703A')
+    color!('#9C3D54')
+    color!('#310B0B')
+  ]
+  
+  x := mcndef(x)
+  y := mcndef(y)
+  ws := mcndef(ws)
+  hs := mcndef(hs)
+  
+  box := p.add([
+    COLS.0
+    s(:SOLID)
+    outline(4)
+    
+    if grab? -> s(:WAR_GRAB)
+    if smash? -> s(:WAR_SMASH)
+    
+    rect(50 * ws, 50 * hs)
+    pos(x, y)
+    
+    body({
+      isStatic: isStatic?
+    })
+    
+    rotate(0)
+    area()
+    
+    with anchor() s('center')
+  ])
+
+  box.BRATE <- vec2(
+    2
+    2
+  )
+  
+  fn addVel() {
+    box.vel.y <- -box.vel.y - 300
+    box.vel.x <- box.vel.x + (100 * [-1, 1] |> rnd.choice())
+
+    GREH! := with box.onGround() fn {
+      GREH!.cancel()
+
+      box.vel.y <- 0
+      box.vel.x <- 0
+    }
+  }
+
+  box.whenHeadbutt <- fn(pl) {
+    addVel()
+
+    p_dir := if pl.flipX {
+      true -> -1
+      false -> 1
+    }
+
+    // We'll up our odds when bouncing on a head.
+    box.vel.x <- box.vel.x * [-1, 1, p_dir] |> rnd.choice()
+  }
+  
+  with box.onUpdate() fn {
+    landedOn? := box.curPlatform()
+    if landedOn? != ? & with landedOn?.is() s(:P) {
+      true -> addVel()
+    }
+  }
+
+  // ---
+  // PASSIVE
+
+  fn fallingTooLong? if box.isFalling() -> {
+    with wait(dt() * 10) fn if box.isFalling() -> {
+      randomDir := [-1, 1] |> rnd.choice()
+      
+      FallUL! := with box.onUpdate() fn {
+        box.angle <- box.angle + (5 * dt() * randomDir)
+      }
+
+      FallGE! := with box.onGround() fn {
+        FallGE!.cancel()
+        FallUL!.cancel()
+      }
+    }
+  }
+
+  with box.onUpdate() fn {
+    fallingTooLong?()
+    
+    if box.isGrounded() & ! box.angle % 90 = 0 -> {
+      // Turn towards nearest 90* side
+      sideA := box.angle / 90
+      if int(sideA) < sideA -> sideA <- sideA + 1
+      
+      box.angle <- int(sideA) * 90
+      
+    }
+  }
+}
+
+fn Floor(p, x, y, w, h) {
+  x := mcndef(x)
+  y := mcndef(y)
+  w := mcndef(w)
+  h := mcndef(h)
+  
+  f := p.add([
+    rect(w, h)
+    outline(4)
+    area()
+    s(:SOLID)
+    pos(x, y)
+    body({ isStatic: true })
+  ])
+
+  f.mass <- 100
+
+  f.WALKSOUND <- s('walk')
+  f.WALKOPTIONS <- {
+    volume: 0.4
+  }
+  
+}
+
+fn sFloor(p, x, y, w, h) {
+  Floor(p, x, y, w, h).isStatic <- false
+}
+
+fn Invis(p, x, y, w, h) {
+  x := mcndef(x)
+  y := mcndef(y)
+  w := mcndef(w)
+  h := mcndef(h)
+  
+  p.add([
+    rect(w, h)
+    area()
+    s(:SOLID)
+    pos(x, y)
+    body({ isStatic: true })
+  ])
+}
+
+fn _MovingCamTranst(modecb?) fn(cb) {
+  tr := Transition()
+  time! := 0.2
+  tr.(modecb?)(time!)
+
+  TUH := with tempUpdate(time! * 2) fn {
+    pos! := camPos(0, 0)
+    tr.tr.pos.x <- pos!.x
+    tr.tr.pos.y <- pos!.y
+
+    with tr.tr.use() z(999)
+  }
+
+  with TUH.onFinish() fn() {
+    with wait(time!) fn() tr.tr.remove()
+
+    // ---
+
+    cb()
+  }
+}
+
+Entrance := _MovingCamTranst('fadeOut')
+Exit := _MovingCamTranst('fadeIn')
+
+// ---
+// @ Levels
+
+fn Level1 {
+
+  bean := makePlayer()
+  War3MC(bean)
+
+  setGravity(1600)
+
+  // ---
+  // @ Level Geo
+  
+  lvl <- add([
+    s('level')
+    s('Level1')
+  ])
+
+  Invis(
+    lvl
+    -width() * 5 / 2
+    -90
+    50
+    height() * 4
+  )
+
+  Floor(
+    lvl
+    -width() * 5 / 2
+    90
+    width() * 5
+    height()
+  )
+
+  MovingCrate(
+    lvl
+    30
+    20
+
+    1
+    1
+
+    true
+    true
+  )
+
+  // ---
+
+  fn CAMstart {
+    bean.CAM <- true
+  }
+
+  Entrance(CAMstart)
+}
+
+// ---
+// @ GAME START
+
+with scene('menu') fn {
+
+  with wait(5) fn {
+    WAIT_TIME := 0.2
+
+    tr := Transition()
+    tr.fadeOut(WAIT_TIME)
+
+    with wait(WAIT_TIME * 10) fn() {
+      go('intro')
+    }
+  }
+
+}
+
+with scene('init') fn {
+
+  go('intro')
+  
+}
+
+with scene('intro') fn {
+
+  Level1()
+
+}
