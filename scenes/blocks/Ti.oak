@@ -1,0 +1,24 @@
+std := import('std')
+math := import('math')
+
+fn PPS!(pixels) pixels * 60
+fn DTP!(pixels) PPS!(pixels) * dt()
+
+// Wait based on Delta-Time
+fn dtWait(s, cb) {
+  initialTime := s |> std.clone()
+
+  rt := ?
+
+  DTWUE! := with onUpdate() fn {
+    
+    initialTime <- initialTime - dt()
+    if initialTime <= 0 -> {
+      DTWUE!.cancel() 
+      rt <- cb(s)
+    }
+  
+  }
+
+  fn() rt
+}

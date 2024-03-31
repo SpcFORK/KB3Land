@@ -2,6 +2,12 @@ std := import('std')
 math := import('math')
 rnd := import('random')
 
+{
+  DTP!: DTP!
+  PPS!: PPS!
+  dtWait: dtWait
+} := import('../blocks/Ti')
+
 fn snd(name) loadSound(s(name), s('sounds/' << name << '.wav'))
 
 THROW := snd('throw')
@@ -38,7 +44,7 @@ fn War3MC(ss) {
 
   ss.SPEED := 480
   ss.CAMSPEED := 5
-  ss.DASHLEN := 50
+  ss.DASHLEN := 1
 
   ss.mass <- ss.RESETMASS
 
@@ -178,7 +184,7 @@ fn War3MC(ss) {
     TIMED <- false
     ss.MAYDASH? <- false
 
-    with wait(ss.DASHLEN * dt()) fn() TIMED <- true
+    with dtWait(ss.DASHLEN) fn() TIMED <- true
 
     dir := ss.flipX
     dirVal := if dir {
@@ -205,11 +211,10 @@ fn War3MC(ss) {
     }
 
     fn BouncePlayer {
-      direction := 
-      ss.vel.x <- 500 * -dirVal
-      ss.vel.y <- 500
+      ss.vel.x <- DTP!(500) * -dirVal
+      ss.vel.y <- DTP!(500)
 
-      ss.jump(200)
+      with ss.jump() DTP!(200)
       collideSoundEvent(?, ?, ss)
 
       ssGEH! <- with ss.onGround() fn {
@@ -225,8 +230,8 @@ fn War3MC(ss) {
       RATEX := ob.BRATE.x |> std.default(5)
       RATEY := ob.BRATE.y |> std.default(5)
       
-      ob.vel.x <- 500 / (RATEX * ob.mass / 2) * dr?
-      ob.vel.y <- 500 / (RATEY * ob.mass)
+      ob.vel.x <- DTP!(500) / (RATEX * ob.mass / 2) * dr?
+      ob.vel.y <- DTP!(500) / (RATEY * ob.mass)
 
       if ob.jump != ? -> ob.jump()
       collideSoundEvent(RATEX, RATEY, ob)
@@ -295,7 +300,7 @@ fn War3MC(ss) {
 
     state := with ss.onUpdate() fn {
       with ss.use() std.clone(rnd.choice(COLORS))
-      ss.vel.x <- 5 * dirVal
+      ss.vel.x <- DTP!(5) * dirVal
 
       if dir != ss.flipX -> {
         end()
@@ -433,7 +438,7 @@ fn War3MC(ss) {
       elapsed := resTime - initTime 
 
       if s('w') |> isKeyDown() -> {
-        mY <- mY + 300
+        mY <- mY + DTP!(300)
         mX <- mX / 4
       }
 
@@ -445,7 +450,7 @@ fn War3MC(ss) {
       
       ssTHROWN.vel.x <- ssTHROWN.vel.x + (mX * ThrowDirVal)
       
-      BONUS_SPEED := (200 * ss.moving.x)
+      BONUS_SPEED := DTP!(200) * ss.moving.x
       if {
         ss.WALKING -> {
           ssTHROWN.vel.x <- ssTHROWN.vel.x + BONUS_SPEED
@@ -509,4 +514,10 @@ fn War3MC(ss) {
     with play() s('land')
     JumpS_END()
   }
+
+  // ---
+
+  ss.GROUNDPOUND <- false
+  
+  
 }

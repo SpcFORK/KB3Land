@@ -8,6 +8,12 @@
   War3MC: War3MC
 } := import('../ware/WarMovement')
 
+{
+  DTP!: DTP!
+  PPS!: PPS!
+  dtWait: dtWait
+} := import('../blocks/Ti')
+
 std := import('std')
 math := import('math')
 rnd := import('random')
@@ -120,8 +126,8 @@ fn MovingCrate(p, x, y, ws, hs, grab?, smash?, isStatic?) {
   )
   
   fn addVel() {
-    box.vel.y <- -box.vel.y - 300
-    box.vel.x <- box.vel.x + (100 * [-1, 1] |> rnd.choice())
+    box.vel.y <- -box.vel.y - DTP!(300)
+    box.vel.x <- box.vel.x + (DTP!(100) * [-1, 1] |> rnd.choice())
 
     GREH! := with box.onGround() fn {
       GREH!.cancel()
