@@ -518,6 +518,18 @@ fn War3MC(ss) {
   // ---
 
   ss.GROUNDPOUND <- false
+  with strpress!('s') fn if {
+    ss.isFalling() &
+    ! ss.GROUNDPOUND &
+    ! ss.DASHING -> 
+    
+    {
+      ss.GROUNDPOUND <- true
+      ss.vel.y <- ss.vel.y + DTP!(600)
   
-  
+      GPGH! := with ss.onGround() fn {
+        ss.GROUNDPOUND <- false
+      }
+    }
+  }
 }
