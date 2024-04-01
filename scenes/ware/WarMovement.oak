@@ -524,8 +524,24 @@ fn War3MC(ss) {
     ! ss.DASHING -> 
     
     {
+      fn cancelGPE! {
+        GPCH!.cancel()
+        GPGH!.cancel()
+      }
+      
       ss.GROUNDPOUND <- true
       ss.vel.y <- ss.vel.y + DTP!(600)
+      
+      GPCH! := ss.onCollide(
+        s(:WAR_GP_BREAK)
+        fn(bObj) if {
+          CB! := bObj.whenGroundpound
+          CB! = ? {
+            true -> CB!()
+            _ -> debug.log('Odd config: Add .whenGroundpound to :WAR_GP_BREAK OBJ')
+          } 
+        }
+      )
   
       GPGH! := with ss.onGround() fn {
         ss.GROUNDPOUND <- false
